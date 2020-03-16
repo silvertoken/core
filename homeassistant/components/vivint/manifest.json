@@ -1,0 +1,12 @@
+{
+  "domain": "vivint",
+  "name": "Vivint",
+  "config_flow": true,
+  "documentation": "https://www.home-assistant.io/integrations/vivint",
+  "requirements": ["pyVivintSky==0.0.2"],
+  "ssdp": [],
+  "zeroconf": [],
+  "homekit": {},
+  "dependencies": [],
+  "codeowners": ["@silvertoken"]
+}

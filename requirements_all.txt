@@ -1124,6 +1124,9 @@ pyRFXtrx==0.25
 # homeassistant.components.tibber
 pyTibber==0.13.3
 
+# homeassistant.components.vivint
+pyVivintSky==0.0.2
+
 # homeassistant.components.dlink
 pyW215==0.6.0
 

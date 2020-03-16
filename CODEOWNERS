@@ -398,6 +398,7 @@ homeassistant/components/version/* @fabaff
 homeassistant/components/vesync/* @markperdue @webdjoe
 homeassistant/components/vicare/* @oischinger
 homeassistant/components/vilfo/* @ManneW
+homeassistant/components/vivint/* @silvertoken
 homeassistant/components/vivotek/* @HarlemSquirrel
 homeassistant/components/vizio/* @raman325
 homeassistant/components/vlc_telnet/* @rodripf

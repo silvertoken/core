@@ -111,6 +111,7 @@ FLOWS = [
     "velbus",
     "vesync",
     "vilfo",
+    "vivint",
     "vizio",
     "wemo",
     "withings",
