@@ -1,6 +1,4 @@
 """Tests for the Spotify config flow."""
-from unittest.mock import patch
-
 from spotipy import SpotifyException
 
 from homeassistant import data_entry_flow, setup
@@ -12,6 +10,7 @@ from homeassistant.components.spotify.const import (
 from homeassistant.config_entries import SOURCE_USER, SOURCE_ZEROCONF
 from homeassistant.helpers import config_entry_oauth2_flow
 
+from tests.async_mock import patch
 from tests.common import MockConfigEntry
 
 
@@ -86,7 +85,8 @@ async def test_full_flow(hass, aiohttp_client, aioclient_mock):
         },
     )
 
-    with patch("homeassistant.components.spotify.config_flow.Spotify"):
+    with patch("homeassistant.components.spotify.config_flow.Spotify") as spotify_mock:
+        spotify_mock.return_value.current_user.return_value = {"id": "fake_id"}
         result = await hass.config_entries.flow.async_configure(result["flow_id"])
 
     assert result["data"]["auth_implementation"] == DOMAIN

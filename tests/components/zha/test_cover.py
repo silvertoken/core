@@ -1,7 +1,4 @@
 """Test zha cover."""
-from unittest.mock import MagicMock, call, patch
-
-import asynctest
 import pytest
 import zigpy.types
 import zigpy.zcl.clusters.closures as closures
@@ -14,10 +11,10 @@ from .common import (
     async_enable_traffic,
     async_test_rejoin,
     find_entity_id,
-    make_attribute,
-    make_zcl_header,
+    send_attributes_report,
 )
 
+from tests.async_mock import MagicMock, call, patch
 from tests.common import mock_coro
 
 
@@ -35,7 +32,7 @@ def zigpy_cover_device(zigpy_device_mock):
     return zigpy_device_mock(endpoints)
 
 
-@asynctest.patch(
+@patch(
     "homeassistant.components.zha.core.channels.closures.WindowCovering.async_initialize"
 )
 async def test_cover(m1, hass, zha_device_joined_restored, zigpy_cover_device):
@@ -64,19 +61,12 @@ async def test_cover(m1, hass, zha_device_joined_restored, zigpy_cover_device):
     await async_enable_traffic(hass, [zha_device])
     await hass.async_block_till_done()
 
-    attr = make_attribute(8, 100)
-    hdr = make_zcl_header(zcl_f.Command.Report_Attributes)
-    cluster.handle_message(hdr, [[attr]])
-    await hass.async_block_till_done()
-
     # test that the state has changed from unavailable to off
+    await send_attributes_report(hass, cluster, {0: 0, 8: 100, 1: 1})
     assert hass.states.get(entity_id).state == STATE_CLOSED
 
     # test to see if it opens
-    attr = make_attribute(8, 0)
-    hdr = make_zcl_header(zcl_f.Command.Report_Attributes)
-    cluster.handle_message(hdr, [[attr]])
-    await hass.async_block_till_done()
+    await send_attributes_report(hass, cluster, {0: 1, 8: 0, 1: 100})
     assert hass.states.get(entity_id).state == STATE_OPEN
 
     # close from UI
@@ -88,7 +78,7 @@ async def test_cover(m1, hass, zha_device_joined_restored, zigpy_cover_device):
         )
         assert cluster.request.call_count == 1
         assert cluster.request.call_args == call(
-            False, 0x1, (), expect_reply=True, manufacturer=None
+            False, 0x1, (), expect_reply=True, manufacturer=None, tsn=None
         )
 
     # open from UI
@@ -100,7 +90,7 @@ async def test_cover(m1, hass, zha_device_joined_restored, zigpy_cover_device):
         )
         assert cluster.request.call_count == 1
         assert cluster.request.call_args == call(
-            False, 0x0, (), expect_reply=True, manufacturer=None
+            False, 0x0, (), expect_reply=True, manufacturer=None, tsn=None
         )
 
     # set position UI
@@ -115,7 +105,13 @@ async def test_cover(m1, hass, zha_device_joined_restored, zigpy_cover_device):
         )
         assert cluster.request.call_count == 1
         assert cluster.request.call_args == call(
-            False, 0x5, (zigpy.types.uint8_t,), 53, expect_reply=True, manufacturer=None
+            False,
+            0x5,
+            (zigpy.types.uint8_t,),
+            53,
+            expect_reply=True,
+            manufacturer=None,
+            tsn=None,
         )
 
     # stop from UI
@@ -127,7 +123,7 @@ async def test_cover(m1, hass, zha_device_joined_restored, zigpy_cover_device):
         )
         assert cluster.request.call_count == 1
         assert cluster.request.call_args == call(
-            False, 0x2, (), expect_reply=True, manufacturer=None
+            False, 0x2, (), expect_reply=True, manufacturer=None, tsn=None
         )
 
     # test rejoin

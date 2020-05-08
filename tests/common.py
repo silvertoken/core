@@ -11,8 +11,9 @@ import logging
 import os
 import sys
 import threading
-from unittest.mock import MagicMock, Mock, patch
 import uuid
+
+from aiohttp.test_utils import unused_port as get_test_instance_port  # noqa
 
 from homeassistant import auth, config_entries, core as ha, loader
 from homeassistant.auth import (
@@ -37,7 +38,6 @@ from homeassistant.const import (
     EVENT_PLATFORM_DISCOVERED,
     EVENT_STATE_CHANGED,
     EVENT_TIME_CHANGED,
-    SERVER_PORT,
     STATE_OFF,
     STATE_ON,
 )
@@ -59,7 +59,8 @@ import homeassistant.util.dt as date_util
 from homeassistant.util.unit_system import METRIC_SYSTEM
 import homeassistant.util.yaml.loader as yaml_loader
 
-_TEST_INSTANCE_PORT = SERVER_PORT
+from tests.async_mock import AsyncMock, MagicMock, Mock, patch
+
 _LOGGER = logging.getLogger(__name__)
 INSTANCES = []
 CLIENT_ID = "https://example.com/app"
@@ -159,20 +160,37 @@ async def async_test_home_assistant(loop):
 
     def async_add_job(target, *args):
         """Add job."""
-        if isinstance(target, Mock):
-            return mock_coro(target(*args))
+        check_target = target
+        while isinstance(check_target, ft.partial):
+            check_target = check_target.func
+
+        if isinstance(check_target, Mock) and not isinstance(target, AsyncMock):
+            fut = asyncio.Future()
+            fut.set_result(target(*args))
+            return fut
+
         return orig_async_add_job(target, *args)
 
     def async_add_executor_job(target, *args):
         """Add executor job."""
-        if isinstance(target, Mock):
-            return mock_coro(target(*args))
+        check_target = target
+        while isinstance(check_target, ft.partial):
+            check_target = check_target.func
+
+        if isinstance(check_target, Mock):
+            fut = asyncio.Future()
+            fut.set_result(target(*args))
+            return fut
+
         return orig_async_add_executor_job(target, *args)
 
     def async_create_task(coroutine):
         """Create task."""
-        if isinstance(coroutine, Mock):
-            return mock_coro()
+        if isinstance(coroutine, Mock) and not isinstance(coroutine, AsyncMock):
+            fut = asyncio.Future()
+            fut.set_result(None)
+            return fut
+
         return orig_async_create_task(coroutine)
 
     hass.async_add_job = async_add_job
@@ -215,18 +233,6 @@ async def async_test_home_assistant(loop):
     hass.bus.async_listen_once(EVENT_HOMEASSISTANT_CLOSE, clear_instance)
 
     return hass
-
-
-def get_test_instance_port():
-    """Return unused port for running test instance.
-
-    The socket that holds the default port does not get released when we stop
-    HA in a different test case. Until I have figured out what is going on,
-    let's run each test on a different port.
-    """
-    global _TEST_INSTANCE_PORT
-    _TEST_INSTANCE_PORT += 1
-    return _TEST_INSTANCE_PORT
 
 
 def async_mock_service(hass, domain, service, schema=None):
@@ -323,15 +329,16 @@ async def async_mock_mqtt_component(hass, config=None):
     if config is None:
         config = {mqtt.CONF_BROKER: "mock-broker"}
 
-    async def _async_fire_mqtt_message(topic, payload, qos, retain):
+    @ha.callback
+    def _async_fire_mqtt_message(topic, payload, qos, retain):
         async_fire_mqtt_message(hass, topic, payload, qos, retain)
 
     with patch("paho.mqtt.client.Client") as mock_client:
-        mock_client().connect.return_value = 0
-        mock_client().subscribe.return_value = (0, 0)
-        mock_client().unsubscribe.return_value = (0, 0)
-        mock_client().publish.return_value = (0, 0)
-        mock_client().publish.side_effect = _async_fire_mqtt_message
+        mock_client = mock_client.return_value
+        mock_client.connect.return_value = 0
+        mock_client.subscribe.return_value = (0, 0)
+        mock_client.unsubscribe.return_value = (0, 0)
+        mock_client.publish.side_effect = _async_fire_mqtt_message
 
         result = await async_setup_component(hass, mqtt.DOMAIN, {mqtt.DOMAIN: config})
         assert result
@@ -515,7 +522,7 @@ class MockModule:
             self.async_setup = async_setup
 
         if setup is None and async_setup is None:
-            self.async_setup = mock_coro_func(True)
+            self.async_setup = AsyncMock(return_value=True)
 
         if async_setup_entry is not None:
             self.async_setup_entry = async_setup_entry
@@ -573,7 +580,7 @@ class MockPlatform:
             self.async_setup_entry = async_setup_entry
 
         if setup_platform is None and async_setup_platform is None:
-            self.async_setup_platform = mock_coro_func()
+            self.async_setup_platform = AsyncMock(return_value=None)
 
 
 class MockEntityPlatform(entity_platform.EntityPlatform):
@@ -737,20 +744,12 @@ def patch_yaml_files(files_dict, endswith=True):
 
 def mock_coro(return_value=None, exception=None):
     """Return a coro that returns a value or raise an exception."""
-    return mock_coro_func(return_value, exception)()
-
-
-def mock_coro_func(return_value=None, exception=None):
-    """Return a method to create a coro function that returns a value."""
-
-    @asyncio.coroutine
-    def coro(*args, **kwargs):
-        """Fake coroutine."""
-        if exception:
-            raise exception
-        return return_value
-
-    return coro
+    fut = asyncio.Future()
+    if exception is not None:
+        fut.set_exception(exception)
+    else:
+        fut.set_result(return_value)
+    return fut
 
 
 @contextmanager
@@ -833,52 +832,6 @@ def mock_restore_cache(hass, states):
 
     # Patch the singleton task in hass.data to return our new RestoreStateData
     hass.data[key] = hass.async_create_task(get_restore_state_data())
-
-
-class MockDependency:
-    """Decorator to mock install a dependency."""
-
-    def __init__(self, root, *args):
-        """Initialize decorator."""
-        self.root = root
-        self.submodules = args
-
-    def __enter__(self):
-        """Start mocking."""
-
-        def resolve(mock, path):
-            """Resolve a mock."""
-            if not path:
-                return mock
-
-            return resolve(getattr(mock, path[0]), path[1:])
-
-        base = MagicMock()
-        to_mock = {
-            f"{self.root}.{tom}": resolve(base, tom.split("."))
-            for tom in self.submodules
-        }
-        to_mock[self.root] = base
-
-        self.patcher = patch.dict("sys.modules", to_mock)
-        self.patcher.start()
-        return base
-
-    def __exit__(self, *exc):
-        """Stop mocking."""
-        self.patcher.stop()
-        return False
-
-    def __call__(self, func):
-        """Apply decorator."""
-
-        def run_mocked(*args, **kwargs):
-            """Run with mocked dependencies."""
-            with self as base:
-                args = list(args) + [base]
-                func(*args, **kwargs)
-
-        return run_mocked
 
 
 class MockEntity(entity.Entity):
@@ -1017,7 +970,7 @@ async def flush_store(store):
     if store._data is None:
         return
 
-    store._async_cleanup_stop_listener()
+    store._async_cleanup_final_write_listener()
     store._async_cleanup_delay_listener()
     await store._async_handle_write_data()
 
@@ -1030,7 +983,7 @@ async def get_system_health_info(hass, domain):
 def mock_integration(hass, module):
     """Mock an integration."""
     integration = loader.Integration(
-        hass, f"homeassistant.components.{module.DOMAIN}", None, module.mock_manifest(),
+        hass, f"homeassistant.components.{module.DOMAIN}", None, module.mock_manifest()
     )
 
     _LOGGER.info("Adding mock integration: %s", module.DOMAIN)

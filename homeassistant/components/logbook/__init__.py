@@ -8,12 +8,6 @@ from sqlalchemy.exc import SQLAlchemyError
 import voluptuous as vol
 
 from homeassistant.components import sun
-from homeassistant.components.homekit.const import (
-    ATTR_DISPLAY_NAME,
-    ATTR_VALUE,
-    DOMAIN as DOMAIN_HOMEKIT,
-    EVENT_HOMEKIT_CHANGED,
-)
 from homeassistant.components.http import HomeAssistantView
 from homeassistant.components.recorder.models import Events, States
 from homeassistant.components.recorder.util import (
@@ -26,7 +20,6 @@ from homeassistant.const import (
     ATTR_ENTITY_ID,
     ATTR_HIDDEN,
     ATTR_NAME,
-    ATTR_SERVICE,
     CONF_EXCLUDE,
     CONF_INCLUDE,
     EVENT_AUTOMATION_TRIGGERED,
@@ -89,7 +82,6 @@ ALL_EVENT_TYPES = [
     EVENT_LOGBOOK_ENTRY,
     EVENT_HOMEASSISTANT_START,
     EVENT_HOMEASSISTANT_STOP,
-    EVENT_HOMEKIT_CHANGED,
     EVENT_AUTOMATION_TRIGGERED,
     EVENT_SCRIPT_STARTED,
 ]
@@ -203,9 +195,6 @@ def humanify(hass, events):
     """
     domain_prefixes = tuple(f"{dom}." for dom in CONTINUOUS_DOMAINS)
 
-    # Track last states to filter out duplicates
-    last_state = {}
-
     # Group events in batches of GROUP_BY_MINUTES
     for _, g_events in groupby(
         events, lambda event: event.time_fired.minute // GROUP_BY_MINUTES
@@ -254,13 +243,6 @@ def humanify(hass, events):
 
             if event.event_type == EVENT_STATE_CHANGED:
                 to_state = State.from_dict(event.data.get("new_state"))
-
-                # Filter out states that become same state again (force_update=True)
-                # or light becoming different color
-                if last_state.get(to_state.entity_id) == to_state.state:
-                    continue
-
-                last_state[to_state.entity_id] = to_state.state
 
                 domain = to_state.domain
 
@@ -329,24 +311,6 @@ def humanify(hass, events):
                     "name": event.data.get(ATTR_NAME),
                     "message": event.data.get(ATTR_MESSAGE),
                     "domain": domain,
-                    "entity_id": entity_id,
-                    "context_id": event.context.id,
-                    "context_user_id": event.context.user_id,
-                }
-
-            elif event.event_type == EVENT_HOMEKIT_CHANGED:
-                data = event.data
-                entity_id = data.get(ATTR_ENTITY_ID)
-                value = data.get(ATTR_VALUE)
-
-                value_msg = f" to {value}" if value else ""
-                message = f"send command {data[ATTR_SERVICE]}{value_msg} for {data[ATTR_DISPLAY_NAME]}"
-
-                yield {
-                    "when": event.time_fired,
-                    "name": "HomeKit",
-                    "message": message,
-                    "domain": DOMAIN_HOMEKIT,
                     "entity_id": entity_id,
                     "context_id": event.context.id,
                     "context_user_id": event.context.user_id,
@@ -468,25 +432,21 @@ def _keep_event(hass, event, entities_filter):
             return False
 
         # Do not report on new entities
-        if event.data.get("old_state") is None:
+        old_state = event.data.get("old_state")
+        if old_state is None:
             return False
-
-        new_state = event.data.get("new_state")
 
         # Do not report on entity removal
-        if not new_state:
+        new_state = event.data.get("new_state")
+        if new_state is None:
             return False
 
-        attributes = new_state.get("attributes", {})
-
-        # If last_changed != last_updated only attributes have changed
-        # we do not report on that yet.
-        last_changed = new_state.get("last_changed")
-        last_updated = new_state.get("last_updated")
-        if last_changed != last_updated:
+        # Do not report on only attribute changes
+        if new_state.get("state") == old_state.get("state"):
             return False
 
         domain = split_entity_id(entity_id)[0]
+        attributes = new_state.get("attributes", {})
 
         # Also filter auto groups.
         if domain == "group" and attributes.get("auto", False):
@@ -511,9 +471,6 @@ def _keep_event(hass, event, entities_filter):
 
     elif event.event_type in hass.data.get(DOMAIN, {}):
         domain = hass.data[DOMAIN][event.event_type][0]
-
-    elif event.event_type == EVENT_HOMEKIT_CHANGED:
-        domain = DOMAIN_HOMEKIT
 
     if not entity_id and domain:
         entity_id = f"{domain}."

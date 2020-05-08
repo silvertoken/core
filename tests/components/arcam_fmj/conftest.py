@@ -1,13 +1,14 @@
 """Tests for the arcam_fmj component."""
 from arcam.fmj.client import Client
 from arcam.fmj.state import State
-from asynctest import Mock
 import pytest
 
 from homeassistant.components.arcam_fmj import DEVICE_SCHEMA
 from homeassistant.components.arcam_fmj.const import DOMAIN
 from homeassistant.components.arcam_fmj.media_player import ArcamFmj
 from homeassistant.const import CONF_HOST, CONF_PORT
+
+from tests.async_mock import Mock
 
 MOCK_HOST = "127.0.0.1"
 MOCK_PORT = 1234
@@ -55,5 +56,5 @@ def player_fixture(hass, state):
     player = ArcamFmj(state, MOCK_NAME, None)
     player.entity_id = MOCK_ENTITY_ID
     player.hass = hass
-    player.async_schedule_update_ha_state = Mock()
+    player.async_write_ha_state = Mock()
     return player

@@ -1,13 +1,12 @@
 {
   "config": {
-    "title": "SimpliSafe",
     "step": {
       "user": {
-        "title": "Fill in your information",
+        "title": "Fill in your information.",
         "data": {
           "username": "Email Address",
           "password": "Password",
-          "code": "Code (for Home Assistant)"
+          "code": "Code (used in Home Assistant UI)"
         }
       }
     },
@@ -17,6 +16,16 @@
     },
     "abort": {
       "already_configured": "This SimpliSafe account is already in use."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Configure SimpliSafe",
+        "data": {
+          "code": "Code (used in Home Assistant UI)"
+        }
+      }
     }
   }
 }

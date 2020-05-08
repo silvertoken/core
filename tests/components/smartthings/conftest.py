@@ -2,7 +2,6 @@
 import secrets
 from uuid import uuid4
 
-from asynctest import Mock, patch
 from pysmartthings import (
     CLASSIFICATION_AUTOMATION,
     AppEntity,
@@ -42,6 +41,7 @@ from homeassistant.config_entries import CONN_CLASS_CLOUD_PUSH, SOURCE_USER, Con
 from homeassistant.const import CONF_ACCESS_TOKEN, CONF_WEBHOOK_ID
 from homeassistant.setup import async_setup_component
 
+from tests.async_mock import Mock, patch
 from tests.common import MockConfigEntry
 
 COMPONENT_PREFIX = "homeassistant.components.smartthings."
@@ -105,7 +105,7 @@ def app_fixture(hass, config_file):
     app.app_type = "WEBHOOK_SMART_APP"
     app.classifications = [CLASSIFICATION_AUTOMATION]
     app.display_name = "Home Assistant"
-    app.description = hass.config.location_name + " at " + hass.config.api.base_url
+    app.description = f"{hass.config.location_name} at {hass.config.api.base_url}"
     app.single_instance = True
     app.webhook_target_url = webhook.async_generate_url(
         hass, hass.data[DOMAIN][CONF_WEBHOOK_ID]

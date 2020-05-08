@@ -1,6 +1,5 @@
 {
   "config": {
-    "title": "World Wide Lightning Location Network (WWLLN)",
     "step": {
       "user": {
         "title": "Fill in your location information.",
@@ -11,9 +10,6 @@
         }
       }
     },
-    "abort": {
-      "already_configured": "This location is already registered.",
-      "window_too_small": "A too-small window will cause Home Assistant to miss events."
-    }
+    "abort": { "already_configured": "This location is already registered." }
   }
 }

@@ -2,6 +2,8 @@
 import enum
 import logging
 
+from zigpy.config import CONF_DEVICE_PATH  # noqa: F401 # pylint: disable=unused-import
+
 from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR
 from homeassistant.components.cover import DOMAIN as COVER
 from homeassistant.components.device_tracker import DOMAIN as DEVICE_TRACKER
@@ -22,8 +24,10 @@ ATTR_COMMAND = "command"
 ATTR_COMMAND_TYPE = "command_type"
 ATTR_DEVICE_IEEE = "device_ieee"
 ATTR_DEVICE_TYPE = "device_type"
+ATTR_ENDPOINTS = "endpoints"
 ATTR_ENDPOINT_ID = "endpoint_id"
 ATTR_IEEE = "ieee"
+ATTR_IN_CLUSTERS = "in_clusters"
 ATTR_LAST_SEEN = "last_seen"
 ATTR_LEVEL = "level"
 ATTR_LQI = "lqi"
@@ -32,8 +36,11 @@ ATTR_MANUFACTURER_CODE = "manufacturer_code"
 ATTR_MEMBERS = "members"
 ATTR_MODEL = "model"
 ATTR_NAME = "name"
+ATTR_NODE_DESCRIPTOR = "node_descriptor"
 ATTR_NWK = "nwk"
+ATTR_OUT_CLUSTERS = "out_clusters"
 ATTR_POWER_SOURCE = "power_source"
+ATTR_PROFILE_ID = "profile_id"
 ATTR_QUIRK_APPLIED = "quirk_applied"
 ATTR_QUIRK_CLASS = "quirk_class"
 ATTR_RSSI = "rssi"
@@ -87,8 +94,10 @@ CONF_BAUDRATE = "baudrate"
 CONF_DATABASE = "database_path"
 CONF_DEVICE_CONFIG = "device_config"
 CONF_ENABLE_QUIRKS = "enable_quirks"
+CONF_FLOWCONTROL = "flow_control"
 CONF_RADIO_TYPE = "radio_type"
 CONF_USB_PATH = "usb_path"
+CONF_ZIGPY = "zigpy_config"
 CONTROLLER = "controller"
 
 DATA_DEVICE_CONFIG = "zha_device_config"
@@ -140,11 +149,11 @@ POWER_BATTERY_OR_UNKNOWN = "Battery or Unknown"
 class RadioType(enum.Enum):
     """Possible options for radio type."""
 
-    deconz = "deconz"
     ezsp = "ezsp"
+    deconz = "deconz"
     ti_cc = "ti_cc"
-    xbee = "xbee"
     zigate = "zigate"
+    xbee = "xbee"
 
     @classmethod
     def list(cls):
@@ -206,6 +215,10 @@ SIGNAL_MOVE_LEVEL = "move_level"
 SIGNAL_REMOVE = "remove"
 SIGNAL_SET_LEVEL = "set_level"
 SIGNAL_STATE_ATTR = "update_state_attribute"
+SIGNAL_UPDATE_DEVICE = "{}_zha_update_device"
+SIGNAL_REMOVE_GROUP = "remove_group"
+SIGNAL_GROUP_ENTITY_REMOVED = "group_entity_removed"
+SIGNAL_GROUP_MEMBERSHIP_CHANGE = "group_membership_change"
 
 UNKNOWN = "unknown"
 UNKNOWN_MANUFACTURER = "unk_manufacturer"
@@ -249,7 +262,6 @@ ZHA_GW_MSG_GROUP_REMOVED = "group_removed"
 ZHA_GW_MSG_LOG_ENTRY = "log_entry"
 ZHA_GW_MSG_LOG_OUTPUT = "log_output"
 ZHA_GW_MSG_RAW_INIT = "raw_device_initialized"
-ZHA_GW_RADIO = "radio"
 ZHA_GW_RADIO_DESCRIPTION = "radio_description"
 
 EFFECT_BLINK = 0x00

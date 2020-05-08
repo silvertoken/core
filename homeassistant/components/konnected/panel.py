@@ -23,6 +23,7 @@ from homeassistant.const import (
 from homeassistant.core import callback
 from homeassistant.helpers import aiohttp_client, device_registry as dr
 from homeassistant.helpers.dispatcher import async_dispatcher_send
+from homeassistant.helpers.network import async_get_url
 
 from .const import (
     CONF_ACTIVATION,
@@ -294,8 +295,10 @@ class AlarmPanel:
     @callback
     def async_desired_settings_payload(self):
         """Return a dict representing the desired device configuration."""
-        desired_api_host = (
-            self.hass.data[DOMAIN].get(CONF_API_HOST) or self.hass.config.api.base_url
+        # keeping self.hass.data check for backwards compatibility
+        # newly configured integrations store this in the config entry
+        desired_api_host = self.options.get(CONF_API_HOST) or (
+            self.hass.data[DOMAIN].get(CONF_API_HOST) or async_get_url(self.hass)
         )
         desired_api_endpoint = desired_api_host + ENDPOINT_ROOT
 

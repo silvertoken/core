@@ -1,6 +1,4 @@
 """Define tests for the WWLLN config flow."""
-from asynctest import patch
-
 from homeassistant import data_entry_flow
 from homeassistant.components.wwlln import (
     CONF_WINDOW,
@@ -11,6 +9,7 @@ from homeassistant.components.wwlln import (
 from homeassistant.config_entries import SOURCE_IMPORT, SOURCE_USER
 from homeassistant.const import CONF_LATITUDE, CONF_LONGITUDE, CONF_RADIUS
 
+from tests.async_mock import patch
 from tests.common import MockConfigEntry
 
 
@@ -60,23 +59,6 @@ async def test_step_import(hass):
         CONF_RADIUS: 25,
         CONF_WINDOW: 3600.0,
     }
-
-
-async def test_step_import_too_small_window(hass):
-    """Test that the import step with a too-small window is aborted."""
-    conf = {
-        CONF_LATITUDE: 39.128712,
-        CONF_LONGITUDE: -104.9812612,
-        CONF_RADIUS: 25,
-        CONF_WINDOW: 60,
-    }
-
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": SOURCE_IMPORT}, data=conf
-    )
-
-    assert result["type"] == data_entry_flow.RESULT_TYPE_ABORT
-    assert result["reason"] == "window_too_small"
 
 
 async def test_step_user(hass):

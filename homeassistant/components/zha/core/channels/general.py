@@ -1,6 +1,9 @@
 """General channels module for Zigbee Home Automation."""
+import asyncio
 import logging
+from typing import Any, List, Optional
 
+import zigpy.exceptions
 import zigpy.zcl.clusters.general as general
 
 from homeassistant.core import callback
@@ -16,8 +19,9 @@ from ..const import (
     SIGNAL_MOVE_LEVEL,
     SIGNAL_SET_LEVEL,
     SIGNAL_STATE_ATTR,
+    SIGNAL_UPDATE_DEVICE,
 )
-from .base import ZigbeeChannel, parse_and_log_command
+from .base import ClientChannel, ZigbeeChannel, parse_and_log_command
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,8 +29,6 @@ _LOGGER = logging.getLogger(__name__)
 @registries.ZIGBEE_CHANNEL_REGISTRY.register(general.Alarms.cluster_id)
 class Alarms(ZigbeeChannel):
     """Alarms channel."""
-
-    pass
 
 
 @registries.ZIGBEE_CHANNEL_REGISTRY.register(general.AnalogInput.cluster_id)
@@ -53,8 +55,6 @@ class AnalogValue(ZigbeeChannel):
 @registries.ZIGBEE_CHANNEL_REGISTRY.register(general.ApplianceControl.cluster_id)
 class ApplianceContorl(ZigbeeChannel):
     """Appliance Control channel."""
-
-    pass
 
 
 @registries.CHANNEL_ONLY_CLUSTERS.register(general.Basic.cluster_id)
@@ -126,28 +126,20 @@ class BinaryValue(ZigbeeChannel):
 class Commissioning(ZigbeeChannel):
     """Commissioning channel."""
 
-    pass
-
 
 @registries.ZIGBEE_CHANNEL_REGISTRY.register(general.DeviceTemperature.cluster_id)
 class DeviceTemperature(ZigbeeChannel):
     """Device Temperature channel."""
-
-    pass
 
 
 @registries.ZIGBEE_CHANNEL_REGISTRY.register(general.GreenPowerProxy.cluster_id)
 class GreenPowerProxy(ZigbeeChannel):
     """Green Power Proxy channel."""
 
-    pass
-
 
 @registries.ZIGBEE_CHANNEL_REGISTRY.register(general.Groups.cluster_id)
 class Groups(ZigbeeChannel):
     """Groups channel."""
-
-    pass
 
 
 @registries.ZIGBEE_CHANNEL_REGISTRY.register(general.Identify.cluster_id)
@@ -163,8 +155,12 @@ class Identify(ZigbeeChannel):
             self.async_send_signal(f"{self.unique_id}_{cmd}", args[0])
 
 
+@registries.CLIENT_CHANNELS_REGISTRY.register(general.LevelControl.cluster_id)
+class LevelControlClientChannel(ClientChannel):
+    """LevelControl client cluster."""
+
+
 @registries.BINDABLE_CLUSTERS.register(general.LevelControl.cluster_id)
-@registries.EVENT_RELAY_CLUSTERS.register(general.LevelControl.cluster_id)
 @registries.LIGHT_CLUSTERS.register(general.LevelControl.cluster_id)
 @registries.ZIGBEE_CHANNEL_REGISTRY.register(general.LevelControl.cluster_id)
 class LevelControlChannel(ZigbeeChannel):
@@ -230,9 +226,13 @@ class MultistateValue(ZigbeeChannel):
     REPORT_CONFIG = [{"attr": "present_value", "config": REPORT_CONFIG_DEFAULT}]
 
 
+@registries.CLIENT_CHANNELS_REGISTRY.register(general.OnOff.cluster_id)
+class OnOffClientChannel(ClientChannel):
+    """OnOff client channel."""
+
+
 @registries.BINARY_SENSOR_CLUSTERS.register(general.OnOff.cluster_id)
 @registries.BINDABLE_CLUSTERS.register(general.OnOff.cluster_id)
-@registries.EVENT_RELAY_CLUSTERS.register(general.OnOff.cluster_id)
 @registries.LIGHT_CLUSTERS.register(general.OnOff.cluster_id)
 @registries.SWITCH_CLUSTERS.register(general.OnOff.cluster_id)
 @registries.ZIGBEE_CHANNEL_REGISTRY.register(general.OnOff.cluster_id)
@@ -315,28 +315,63 @@ class OnOffChannel(ZigbeeChannel):
 class OnOffConfiguration(ZigbeeChannel):
     """OnOff Configuration channel."""
 
-    pass
 
-
+@registries.CLIENT_CHANNELS_REGISTRY.register(general.Ota.cluster_id)
 @registries.ZIGBEE_CHANNEL_REGISTRY.register(general.Ota.cluster_id)
 class Ota(ZigbeeChannel):
     """OTA Channel."""
 
-    pass
+    @callback
+    def cluster_command(
+        self, tsn: int, command_id: int, args: Optional[List[Any]]
+    ) -> None:
+        """Handle OTA commands."""
+        cmd_name = self.cluster.server_commands.get(command_id, [command_id])[0]
+        signal_id = self._ch_pool.unique_id.split("-")[0]
+        if cmd_name == "query_next_image":
+            self.async_send_signal(SIGNAL_UPDATE_DEVICE.format(signal_id), args[3])
 
 
 @registries.ZIGBEE_CHANNEL_REGISTRY.register(general.Partition.cluster_id)
 class Partition(ZigbeeChannel):
     """Partition channel."""
 
-    pass
 
-
+@registries.CHANNEL_ONLY_CLUSTERS.register(general.PollControl.cluster_id)
 @registries.ZIGBEE_CHANNEL_REGISTRY.register(general.PollControl.cluster_id)
 class PollControl(ZigbeeChannel):
     """Poll Control channel."""
 
-    pass
+    CHECKIN_INTERVAL = 55 * 60 * 4  # 55min
+    CHECKIN_FAST_POLL_TIMEOUT = 2 * 4  # 2s
+    LONG_POLL = 6 * 4  # 6s
+
+    async def async_configure(self) -> None:
+        """Configure channel: set check-in interval."""
+        try:
+            res = await self.cluster.write_attributes(
+                {"checkin_interval": self.CHECKIN_INTERVAL}
+            )
+            self.debug("%ss check-in interval set: %s", self.CHECKIN_INTERVAL / 4, res)
+        except (asyncio.TimeoutError, zigpy.exceptions.ZigbeeException) as ex:
+            self.debug("Couldn't set check-in interval: %s", ex)
+        await super().async_configure()
+
+    @callback
+    def cluster_command(
+        self, tsn: int, command_id: int, args: Optional[List[Any]]
+    ) -> None:
+        """Handle commands received to this cluster."""
+        cmd_name = self.cluster.client_commands.get(command_id, [command_id])[0]
+        self.debug("Received %s tsn command '%s': %s", tsn, cmd_name, args)
+        self.zha_send_event(cmd_name, args)
+        if cmd_name == "checkin":
+            self.cluster.create_catching_task(self.check_in_response(tsn))
+
+    async def check_in_response(self, tsn: int) -> None:
+        """Respond to checkin command."""
+        await self.checkin_response(True, self.CHECKIN_FAST_POLL_TIMEOUT, tsn=tsn)
+        await self.set_long_poll_interval(self.LONG_POLL)
 
 
 @registries.DEVICE_TRACKER_CLUSTERS.register(general.PowerConfiguration.cluster_id)
@@ -394,26 +429,22 @@ class PowerConfigurationChannel(ZigbeeChannel):
 class PowerProfile(ZigbeeChannel):
     """Power Profile channel."""
 
-    pass
-
 
 @registries.ZIGBEE_CHANNEL_REGISTRY.register(general.RSSILocation.cluster_id)
 class RSSILocation(ZigbeeChannel):
     """RSSI Location channel."""
 
-    pass
+
+@registries.CLIENT_CHANNELS_REGISTRY.register(general.Scenes.cluster_id)
+class ScenesClientChannel(ClientChannel):
+    """Scenes channel."""
 
 
-@registries.EVENT_RELAY_CLUSTERS.register(general.Scenes.cluster_id)
 @registries.ZIGBEE_CHANNEL_REGISTRY.register(general.Scenes.cluster_id)
 class Scenes(ZigbeeChannel):
     """Scenes channel."""
-
-    pass
 
 
 @registries.ZIGBEE_CHANNEL_REGISTRY.register(general.Time.cluster_id)
 class Time(ZigbeeChannel):
     """Time channel."""
-
-    pass

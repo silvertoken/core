@@ -2,7 +2,6 @@
 import re
 import time
 
-from asynctest import MagicMock
 import requests_mock
 import voluptuous as vol
 from withings_api import AbstractWithingsApi
@@ -15,6 +14,7 @@ from homeassistant.components.withings import (
     async_setup_entry,
     const,
 )
+from homeassistant.config import async_process_ha_core_config
 from homeassistant.const import STATE_UNKNOWN
 from homeassistant.core import HomeAssistant
 
@@ -31,6 +31,8 @@ from .common import (
     configure_integration,
     setup_hass,
 )
+
+from tests.async_mock import MagicMock
 
 
 def config_schema_validate(withings_config) -> None:
@@ -163,6 +165,10 @@ async def test_upgrade_token(
     config = await setup_hass(hass)
     profiles = config[const.DOMAIN][const.PROFILES]
 
+    await async_process_ha_core_config(
+        hass, {"internal_url": "http://example.local"},
+    )
+
     await configure_integration(
         hass=hass,
         aiohttp_client=aiohttp_client,
@@ -199,7 +205,7 @@ async def test_upgrade_token(
 
     with requests_mock.mock() as rqmck:
         rqmck.get(
-            re.compile(AbstractWithingsApi.URL + "/v2/user?.*action=getdevice(&.*|$)"),
+            re.compile(f"{AbstractWithingsApi.URL}/v2/user?.*action=getdevice(&.*|$)"),
             status_code=200,
             json=WITHINGS_GET_DEVICE_RESPONSE_EMPTY,
         )
@@ -233,6 +239,10 @@ async def test_auth_failure(
     config = await setup_hass(hass)
     profiles = config[const.DOMAIN][const.PROFILES]
 
+    await async_process_ha_core_config(
+        hass, {"internal_url": "http://example.local"},
+    )
+
     await configure_integration(
         hass=hass,
         aiohttp_client=aiohttp_client,
@@ -255,7 +265,7 @@ async def test_auth_failure(
 
     with requests_mock.mock() as rqmck:
         rqmck.get(
-            re.compile(AbstractWithingsApi.URL + "/v2/user?.*action=getdevice(&.*|$)"),
+            re.compile(f"{AbstractWithingsApi.URL}/v2/user?.*action=getdevice(&.*|$)"),
             status_code=200,
             json={"status": 401, "body": {}},
         )
@@ -267,6 +277,10 @@ async def test_full_setup(hass: HomeAssistant, aiohttp_client, aioclient_mock) -
     """Test the whole component lifecycle."""
     config = await setup_hass(hass)
     profiles = config[const.DOMAIN][const.PROFILES]
+
+    await async_process_ha_core_config(
+        hass, {"internal_url": "http://example.local"},
+    )
 
     await configure_integration(
         hass=hass,
@@ -412,13 +426,8 @@ async def test_full_setup(hass: HomeAssistant, aiohttp_client, aioclient_mock) -
         (profiles[0], const.MEAS_SLEEP_RESPIRATORY_RATE_AVERAGE, 2320),
         (profiles[0], const.MEAS_SLEEP_RESPIRATORY_RATE_MIN, 2520),
         (profiles[0], const.MEAS_SLEEP_RESPIRATORY_RATE_MAX, 2720),
-        (profiles[0], const.MEAS_SLEEP_STATE, const.STATE_DEEP),
-        (profiles[1], const.MEAS_SLEEP_STATE, STATE_UNKNOWN),
         (profiles[1], const.MEAS_HYDRATION, STATE_UNKNOWN),
-        (profiles[2], const.MEAS_SLEEP_STATE, const.STATE_AWAKE),
-        (profiles[3], const.MEAS_SLEEP_STATE, const.STATE_LIGHT),
         (profiles[3], const.MEAS_FAT_FREE_MASS_KG, STATE_UNKNOWN),
-        (profiles[4], const.MEAS_SLEEP_STATE, const.STATE_REM),
     )
     for (profile, meas, value) in expected_states:
         assert_state_equals(hass, profile, meas, value)

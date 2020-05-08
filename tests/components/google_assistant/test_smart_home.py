@@ -1,6 +1,4 @@
 """Test Google Smart Home."""
-from unittest.mock import Mock, patch
-
 import pytest
 
 from homeassistant.components import camera
@@ -22,6 +20,7 @@ from homeassistant.components.google_assistant import (
     smart_home as sh,
     trait,
 )
+from homeassistant.config import async_process_ha_core_config
 from homeassistant.const import ATTR_UNIT_OF_MEASUREMENT, TEMP_CELSIUS, __version__
 from homeassistant.core import EVENT_CALL_SERVICE, State
 from homeassistant.helpers import device_registry
@@ -29,12 +28,8 @@ from homeassistant.setup import async_setup_component
 
 from . import BASIC_CONFIG, MockConfig
 
-from tests.common import (
-    mock_area_registry,
-    mock_coro,
-    mock_device_registry,
-    mock_registry,
-)
+from tests.async_mock import patch
+from tests.common import mock_area_registry, mock_device_registry, mock_registry
 
 REQ_ID = "ff36a3cc-ec34-11e6-b1a0-64510650abcf"
 
@@ -203,6 +198,11 @@ async def test_query_message(hass):
     light2.entity_id = "light.another_light"
     await light2.async_update_ha_state()
 
+    light3 = DemoLight(None, "Color temp Light", state=True, ct=400, brightness=200)
+    light3.hass = hass
+    light3.entity_id = "light.color_temp_light"
+    await light3.async_update_ha_state()
+
     events = []
     hass.bus.async_listen(EVENT_QUERY_RECEIVED, events.append)
 
@@ -219,6 +219,7 @@ async def test_query_message(hass):
                         "devices": [
                             {"id": "light.demo_light"},
                             {"id": "light.another_light"},
+                            {"id": "light.color_temp_light"},
                             {"id": "light.non_existing"},
                         ]
                     },
@@ -244,14 +245,21 @@ async def test_query_message(hass):
                             "saturation": 0.75,
                             "value": 0.3058823529411765,
                         },
-                        "temperatureK": 2500,
                     },
+                },
+                "light.color_temp_light": {
+                    "on": True,
+                    "online": True,
+                    "brightness": 78,
+                    "color": {"temperatureK": 2500},
                 },
             }
         },
     }
 
-    assert len(events) == 3
+    await hass.async_block_till_done()
+
+    assert len(events) == 4
     assert events[0].event_type == EVENT_QUERY_RECEIVED
     assert events[0].data == {
         "request_id": REQ_ID,
@@ -266,6 +274,12 @@ async def test_query_message(hass):
     }
     assert events[2].event_type == EVENT_QUERY_RECEIVED
     assert events[2].data == {
+        "request_id": REQ_ID,
+        "entity_id": "light.color_temp_light",
+        "source": "cloud",
+    }
+    assert events[3].event_type == EVENT_QUERY_RECEIVED
+    assert events[3].data == {
         "request_id": REQ_ID,
         "entity_id": "light.non_existing",
         "source": "cloud",
@@ -301,6 +315,7 @@ async def test_execute(hass):
                                 "devices": [
                                     {"id": "light.non_existing"},
                                     {"id": "light.ceiling_lights"},
+                                    {"id": "light.kitchen_lights"},
                                 ],
                                 "execution": [
                                     {
@@ -321,6 +336,8 @@ async def test_execute(hass):
         const.SOURCE_CLOUD,
     )
 
+    print(result)
+
     assert result == {
         "requestId": REQ_ID,
         "payload": {
@@ -337,13 +354,22 @@ async def test_execute(hass):
                         "on": True,
                         "online": True,
                         "brightness": 20,
+                        "color": {"temperatureK": 2631},
+                    },
+                },
+                {
+                    "ids": ["light.kitchen_lights"],
+                    "status": "SUCCESS",
+                    "states": {
+                        "on": True,
+                        "online": True,
+                        "brightness": 20,
                         "color": {
                             "spectrumHsv": {
-                                "hue": 56,
-                                "saturation": 0.86,
+                                "hue": 345,
+                                "saturation": 0.75,
                                 "value": 0.2,
                             },
-                            "temperatureK": 2631,
                         },
                     },
                 },
@@ -351,7 +377,7 @@ async def test_execute(hass):
         },
     }
 
-    assert len(events) == 4
+    assert len(events) == 6
     assert events[0].event_type == EVENT_COMMAND_RECEIVED
     assert events[0].data == {
         "request_id": REQ_ID,
@@ -392,21 +418,57 @@ async def test_execute(hass):
         },
         "source": "cloud",
     }
+    assert events[4].event_type == EVENT_COMMAND_RECEIVED
+    assert events[4].data == {
+        "request_id": REQ_ID,
+        "entity_id": "light.kitchen_lights",
+        "execution": {
+            "command": "action.devices.commands.OnOff",
+            "params": {"on": True},
+        },
+        "source": "cloud",
+    }
+    assert events[5].event_type == EVENT_COMMAND_RECEIVED
+    assert events[5].data == {
+        "request_id": REQ_ID,
+        "entity_id": "light.kitchen_lights",
+        "execution": {
+            "command": "action.devices.commands.BrightnessAbsolute",
+            "params": {"brightness": 20},
+        },
+        "source": "cloud",
+    }
 
-    assert len(service_events) == 2
+    service_events = sorted(
+        service_events, key=lambda ev: ev.data["service_data"]["entity_id"]
+    )
+    assert len(service_events) == 4
     assert service_events[0].data == {
         "domain": "light",
         "service": "turn_on",
         "service_data": {"entity_id": "light.ceiling_lights"},
     }
-    assert service_events[0].context == events[2].context
     assert service_events[1].data == {
         "domain": "light",
         "service": "turn_on",
         "service_data": {"brightness_pct": 20, "entity_id": "light.ceiling_lights"},
     }
+    assert service_events[0].context == events[2].context
     assert service_events[1].context == events[2].context
     assert service_events[1].context == events[3].context
+    assert service_events[2].data == {
+        "domain": "light",
+        "service": "turn_on",
+        "service_data": {"entity_id": "light.kitchen_lights"},
+    }
+    assert service_events[3].data == {
+        "domain": "light",
+        "service": "turn_on",
+        "service_data": {"brightness_pct": 20, "entity_id": "light.kitchen_lights"},
+    }
+    assert service_events[2].context == events[4].context
+    assert service_events[3].context == events[4].context
+    assert service_events[3].context == events[5].context
 
 
 async def test_raising_error_trait(hass):
@@ -723,9 +785,7 @@ async def test_query_disconnect(hass):
     config = MockConfig(hass=hass)
     config.async_enable_report_state()
     assert config._unsub_report_state is not None
-    with patch.object(
-        config, "async_disconnect_agent_user", side_effect=mock_coro
-    ) as mock_disconnect:
+    with patch.object(config, "async_disconnect_agent_user") as mock_disconnect:
         result = await sh.async_handle_message(
             hass,
             config,
@@ -739,14 +799,16 @@ async def test_query_disconnect(hass):
 
 async def test_trait_execute_adding_query_data(hass):
     """Test a trait execute influencing query data."""
-    hass.config.api = Mock(base_url="http://1.1.1.1:8123")
+    await async_process_ha_core_config(
+        hass, {"external_url": "https://example.com"},
+    )
     hass.states.async_set(
         "camera.office", "idle", {"supported_features": camera.SUPPORT_STREAM}
     )
 
     with patch(
         "homeassistant.components.camera.async_request_stream",
-        return_value=mock_coro("/api/streams/bla"),
+        return_value="/api/streams/bla",
     ):
         result = await sh.async_handle_message(
             hass,
@@ -793,7 +855,7 @@ async def test_trait_execute_adding_query_data(hass):
                     "status": "SUCCESS",
                     "states": {
                         "online": True,
-                        "cameraStreamAccessUrl": "http://1.1.1.1:8123/api/streams/bla",
+                        "cameraStreamAccessUrl": "https://example.com/api/streams/bla",
                     },
                 }
             ]

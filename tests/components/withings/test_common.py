@@ -1,8 +1,6 @@
 """Tests for the Withings component."""
 from datetime import timedelta
-from unittest.mock import patch
 
-from asynctest import MagicMock
 import pytest
 from withings_api import WithingsApi
 from withings_api.common import TimeoutException, UnauthorizedException
@@ -13,6 +11,8 @@ from homeassistant.components.withings.common import (
 )
 from homeassistant.exceptions import PlatformNotReady
 from homeassistant.util import dt
+
+from tests.async_mock import MagicMock, patch
 
 
 @pytest.fixture(name="withings_api")
@@ -115,7 +115,7 @@ async def test_data_manager_update_sleep_date_range(
     """Test method."""
     patch_time_zone = patch(
         "homeassistant.util.dt.DEFAULT_TIME_ZONE",
-        new=dt.get_time_zone("America/Los_Angeles"),
+        new=dt.get_time_zone("America/Belize"),
     )
 
     with patch_time_zone:
@@ -126,10 +126,10 @@ async def test_data_manager_update_sleep_date_range(
         startdate = call_args.get("startdate")
         enddate = call_args.get("enddate")
 
-        assert startdate.tzname() == "PST"
+        assert startdate.tzname() == "CST"
 
-        assert enddate.tzname() == "PST"
-        assert startdate.tzname() == "PST"
+        assert enddate.tzname() == "CST"
+        assert startdate.tzname() == "CST"
         assert update_start_time < enddate
         assert enddate < update_start_time + timedelta(seconds=1)
         assert enddate > startdate

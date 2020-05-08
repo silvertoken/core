@@ -2,13 +2,14 @@
 from math import isclose
 
 from arcam.fmj import DecodeMode2CH, DecodeModeMCH, IncomingAudioFormat, SourceCodes
-from asynctest.mock import ANY, MagicMock, Mock, PropertyMock, patch
 import pytest
 
 from homeassistant.components.media_player.const import MEDIA_TYPE_MUSIC
 from homeassistant.core import HomeAssistant
 
 from .conftest import MOCK_ENTITY_ID, MOCK_HOST, MOCK_NAME, MOCK_PORT
+
+from tests.async_mock import ANY, MagicMock, Mock, PropertyMock, patch
 
 MOCK_TURN_ON = {
     "service": "switch.turn_on",
@@ -126,7 +127,7 @@ async def test_mute_volume(player, state, mute):
     """Test mute functionality."""
     await player.async_mute_volume(mute)
     state.set_mute.assert_called_with(mute)
-    player.async_schedule_update_ha_state.assert_called_with()
+    player.async_write_ha_state.assert_called_with()
 
 
 async def test_name(player):
@@ -203,14 +204,14 @@ async def test_volume_up(player, state):
     """Test mute functionality."""
     await player.async_volume_up()
     state.inc_volume.assert_called_with()
-    player.async_schedule_update_ha_state.assert_called_with()
+    player.async_write_ha_state.assert_called_with()
 
 
 async def test_volume_down(player, state):
     """Test mute functionality."""
     await player.async_volume_down()
     state.dec_volume.assert_called_with()
-    player.async_schedule_update_ha_state.assert_called_with()
+    player.async_write_ha_state.assert_called_with()
 
 
 @pytest.mark.parametrize(

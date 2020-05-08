@@ -90,13 +90,11 @@ class MoldIndicator(Entity):
         self._calib_factor = calib_factor
         self._is_metric = is_metric
         self._available = False
-        self._entities = set(
-            [
-                self._indoor_temp_sensor,
-                self._indoor_humidity_sensor,
-                self._outdoor_temp_sensor,
-            ]
-        )
+        self._entities = {
+            self._indoor_temp_sensor,
+            self._indoor_humidity_sensor,
+            self._outdoor_temp_sensor,
+        }
 
         self._dewpoint = None
         self._indoor_temp = None
@@ -344,7 +342,7 @@ class MoldIndicator(Entity):
         elif crit_humidity < 0:
             self._state = "0"
         else:
-            self._state = "{0:d}".format(int(crit_humidity))
+            self._state = f"{int(crit_humidity):d}"
 
         _LOGGER.debug("Mold indicator humidity: %s", self._state)
 
