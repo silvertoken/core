@@ -1,7 +1,4 @@
 """Tests for Samsung TV config flow."""
-from unittest.mock import call, patch
-
-from asynctest import mock
 import pytest
 from samsungctl.exceptions import AccessDenied, UnhandledResponse
 from samsungtvws.exceptions import ConnectionFailure
@@ -19,7 +16,9 @@ from homeassistant.components.ssdp import (
     ATTR_UPNP_MODEL_NAME,
     ATTR_UPNP_UDN,
 )
-from homeassistant.const import CONF_HOST, CONF_ID, CONF_METHOD, CONF_NAME
+from homeassistant.const import CONF_HOST, CONF_ID, CONF_METHOD, CONF_NAME, CONF_TOKEN
+
+from tests.async_mock import DEFAULT as DEFAULT_MOCK, Mock, PropertyMock, call, patch
 
 MOCK_USER_DATA = {CONF_HOST: "fake_host", CONF_NAME: "fake_name"}
 MOCK_SSDP_DATA = {
@@ -46,6 +45,20 @@ AUTODETECT_LEGACY = {
     "host": "fake_host",
     "timeout": 31,
 }
+AUTODETECT_WEBSOCKET_PLAIN = {
+    "host": "fake_host",
+    "name": "HomeAssistant",
+    "port": 8001,
+    "timeout": 31,
+    "token": None,
+}
+AUTODETECT_WEBSOCKET_SSL = {
+    "host": "fake_host",
+    "name": "HomeAssistant",
+    "port": 8002,
+    "timeout": 31,
+    "token": None,
+}
 
 
 @pytest.fixture(name="remote")
@@ -56,12 +69,13 @@ def remote_fixture():
     ) as remote_class, patch(
         "homeassistant.components.samsungtv.config_flow.socket"
     ) as socket_class:
-        remote = mock.Mock()
-        remote.__enter__ = mock.Mock()
-        remote.__exit__ = mock.Mock()
+        remote = Mock()
+        remote.__enter__ = Mock()
+        remote.__exit__ = Mock()
         remote_class.return_value = remote
-        socket = mock.Mock()
+        socket = Mock()
         socket_class.return_value = socket
+        socket_class.gethostbyname.return_value = "FAKE_IP_ADDRESS"
         yield remote
 
 
@@ -73,12 +87,14 @@ def remotews_fixture():
     ) as remotews_class, patch(
         "homeassistant.components.samsungtv.config_flow.socket"
     ) as socket_class:
-        remotews = mock.Mock()
-        remotews.__enter__ = mock.Mock()
-        remotews.__exit__ = mock.Mock()
+        remotews = Mock()
+        remotews.__enter__ = Mock()
+        remotews.__exit__ = Mock()
         remotews_class.return_value = remotews
-        socket = mock.Mock()
+        remotews_class().__enter__().token = "FAKE_TOKEN"
+        socket = Mock()
         socket_class.return_value = socket
+        socket_class.gethostbyname.return_value = "FAKE_IP_ADDRESS"
         yield remotews
 
 
@@ -446,20 +462,48 @@ async def test_autodetect_websocket(hass, remote, remotews):
     with patch(
         "homeassistant.components.samsungtv.bridge.Remote", side_effect=OSError("Boom"),
     ), patch("homeassistant.components.samsungtv.bridge.SamsungTVWS") as remotews:
+        enter = Mock()
+        type(enter).token = PropertyMock(return_value="123456789")
+        remote = Mock()
+        remote.__enter__ = Mock(return_value=enter)
+        remote.__exit__ = Mock(return_value=False)
+        remotews.return_value = remote
+
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": "user"}, data=MOCK_USER_DATA
         )
         assert result["type"] == "create_entry"
         assert result["data"][CONF_METHOD] == "websocket"
+        assert result["data"][CONF_TOKEN] == "123456789"
         assert remotews.call_count == 1
+        assert remotews.call_args_list == [call(**AUTODETECT_WEBSOCKET_PLAIN)]
+
+
+async def test_autodetect_websocket_ssl(hass, remote, remotews):
+    """Test for send key with autodetection of protocol."""
+    with patch(
+        "homeassistant.components.samsungtv.bridge.Remote", side_effect=OSError("Boom"),
+    ), patch(
+        "homeassistant.components.samsungtv.bridge.SamsungTVWS",
+        side_effect=[WebSocketProtocolException("Boom"), DEFAULT_MOCK],
+    ) as remotews:
+        enter = Mock()
+        type(enter).token = PropertyMock(return_value="123456789")
+        remote = Mock()
+        remote.__enter__ = Mock(return_value=enter)
+        remote.__exit__ = Mock(return_value=False)
+        remotews.return_value = remote
+
+        result = await hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": "user"}, data=MOCK_USER_DATA
+        )
+        assert result["type"] == "create_entry"
+        assert result["data"][CONF_METHOD] == "websocket"
+        assert result["data"][CONF_TOKEN] == "123456789"
+        assert remotews.call_count == 2
         assert remotews.call_args_list == [
-            call(
-                host="fake_host",
-                name="HomeAssistant",
-                port=8001,
-                timeout=31,
-                token=None,
-            )
+            call(**AUTODETECT_WEBSOCKET_PLAIN),
+            call(**AUTODETECT_WEBSOCKET_SSL),
         ]
 
 
@@ -524,18 +568,6 @@ async def test_autodetect_none(hass, remote, remotews):
         ]
         assert remotews.call_count == 2
         assert remotews.call_args_list == [
-            call(
-                host="fake_host",
-                name="HomeAssistant",
-                port=8001,
-                timeout=31,
-                token=None,
-            ),
-            call(
-                host="fake_host",
-                name="HomeAssistant",
-                port=8002,
-                timeout=31,
-                token=None,
-            ),
+            call(**AUTODETECT_WEBSOCKET_PLAIN),
+            call(**AUTODETECT_WEBSOCKET_SSL),
         ]

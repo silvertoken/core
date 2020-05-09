@@ -3,7 +3,6 @@ from datetime import date, datetime, timedelta
 import enum
 import os
 from socket import _GLOBAL_DEFAULT_TIMEOUT
-from unittest.mock import Mock, patch
 import uuid
 
 import pytest
@@ -11,6 +10,8 @@ import voluptuous as vol
 
 import homeassistant
 import homeassistant.helpers.config_validation as cv
+
+from tests.async_mock import Mock, patch
 
 
 def test_boolean():
@@ -621,11 +622,11 @@ def test_deprecated_with_invalidation_version(caplog, schema, version):
     test_data = {"mars": True}
     with pytest.raises(vol.MultipleInvalid) as exc_info:
         invalidated_schema(test_data)
-    assert (
+    assert str(exc_info.value) == (
         "The 'mars' option (with value 'True') is deprecated, "
         "please remove it from your configuration. This option will "
         "become invalid in version 0.1.0"
-    ) == str(exc_info.value)
+    )
 
 
 def test_deprecated_with_replacement_key_and_invalidation_version(
@@ -681,11 +682,11 @@ def test_deprecated_with_replacement_key_and_invalidation_version(
     test_data = {"mars": True}
     with pytest.raises(vol.MultipleInvalid) as exc_info:
         invalidated_schema(test_data)
-    assert (
+    assert str(exc_info.value) == (
         "The 'mars' option (with value 'True') is deprecated, "
         "please replace it with 'jupiter'. This option will become "
         "invalid in version 0.1.0"
-    ) == str(exc_info.value)
+    )
 
 
 def test_deprecated_with_default(caplog, schema):
@@ -833,11 +834,11 @@ def test_deprecated_with_replacement_key_invalidation_version_default(
     test_data = {"mars": True}
     with pytest.raises(vol.MultipleInvalid) as exc_info:
         invalidated_schema(test_data)
-    assert (
+    assert str(exc_info.value) == (
         "The 'mars' option (with value 'True') is deprecated, "
         "please replace it with 'jupiter'. This option will become "
         "invalid in version 0.1.0"
-    ) == str(exc_info.value)
+    )
 
 
 def test_deprecated_cant_find_module():

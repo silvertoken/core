@@ -46,6 +46,7 @@ from homeassistant.helpers.config_validation import (  # noqa: F401
 )
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.entity_component import EntityComponent
+from homeassistant.helpers.network import async_get_url
 from homeassistant.loader import bind_hass
 from homeassistant.setup import async_when_setup
 
@@ -271,7 +272,7 @@ async def async_setup(hass, config):
         """Update tokens of the entities."""
         for entity in component.entities:
             entity.async_update_token()
-            hass.async_create_task(entity.async_update_ha_state())
+            entity.async_write_ha_state()
 
     hass.helpers.event.async_track_time_interval(update_tokens, TOKEN_CHANGE_INTERVAL)
 
@@ -373,7 +374,7 @@ class Camera(Entity):
 
     async def async_camera_image(self):
         """Return bytes of camera image."""
-        return await self.hass.async_add_job(self.camera_image)
+        return await self.hass.async_add_executor_job(self.camera_image)
 
     async def handle_async_still_stream(self, request, interval):
         """Generate an HTTP MJPEG stream from camera images."""
@@ -409,7 +410,7 @@ class Camera(Entity):
 
     async def async_turn_off(self):
         """Turn off camera."""
-        await self.hass.async_add_job(self.turn_off)
+        await self.hass.async_add_executor_job(self.turn_off)
 
     def turn_on(self):
         """Turn off camera."""
@@ -417,25 +418,23 @@ class Camera(Entity):
 
     async def async_turn_on(self):
         """Turn off camera."""
-        await self.hass.async_add_job(self.turn_on)
+        await self.hass.async_add_executor_job(self.turn_on)
 
     def enable_motion_detection(self):
         """Enable motion detection in the camera."""
         raise NotImplementedError()
 
-    @callback
-    def async_enable_motion_detection(self):
+    async def async_enable_motion_detection(self):
         """Call the job and enable motion detection."""
-        return self.hass.async_add_job(self.enable_motion_detection)
+        await self.hass.async_add_executor_job(self.enable_motion_detection)
 
     def disable_motion_detection(self):
         """Disable motion detection in camera."""
         raise NotImplementedError()
 
-    @callback
-    def async_disable_motion_detection(self):
+    async def async_disable_motion_detection(self):
         """Call the job and disable motion detection."""
-        return self.hass.async_add_job(self.disable_motion_detection)
+        await self.hass.async_add_executor_job(self.disable_motion_detection)
 
     @property
     def state_attributes(self):
@@ -686,7 +685,7 @@ async def async_handle_play_stream_service(camera, service_call):
     )
     data = {
         ATTR_ENTITY_ID: entity_ids,
-        ATTR_MEDIA_CONTENT_ID: f"{hass.config.api.base_url}{url}",
+        ATTR_MEDIA_CONTENT_ID: f"{async_get_url(hass)}{url}",
         ATTR_MEDIA_CONTENT_TYPE: FORMAT_CONTENT_TYPE[fmt],
     }
 

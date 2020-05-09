@@ -1,6 +1,5 @@
 """Support for Homekit device discovery."""
 import logging
-import os
 from typing import Any, Dict
 
 import aiohomekit
@@ -132,14 +131,6 @@ class HomeKitEntity(Entity):
         if CharacteristicPermissions.events in char.perms:
             self.watchable_characteristics.append((self._aid, char.iid))
 
-        # Callback to allow entity to configure itself based on this
-        # characteristics metadata (valid values, value ranges, features, etc)
-        setup_fn_name = escape_characteristic_name(char.type_name)
-        setup_fn = getattr(self, f"_setup_{setup_fn_name}", None)
-        if not setup_fn:
-            return
-        setup_fn(char.to_accessory_and_service_list())
-
     @property
     def unique_id(self) -> str:
         """Return the ID of this device."""
@@ -223,16 +214,6 @@ async def async_setup(hass, config):
 
     hass.data[CONTROLLER] = aiohomekit.Controller()
     hass.data[KNOWN_DEVICES] = {}
-
-    dothomekit_dir = hass.config.path(".homekit")
-    if os.path.exists(dothomekit_dir):
-        _LOGGER.warning(
-            (
-                "Legacy homekit_controller state found in %s. Support for reading "
-                "the folder is deprecated and will be removed in 0.109.0."
-            ),
-            dothomekit_dir,
-        )
 
     return True
 

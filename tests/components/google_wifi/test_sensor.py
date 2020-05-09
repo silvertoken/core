@@ -1,7 +1,6 @@
 """The tests for the Google Wifi platform."""
 from datetime import datetime, timedelta
 import unittest
-from unittest.mock import Mock, patch
 
 import requests_mock
 
@@ -11,6 +10,7 @@ from homeassistant.const import STATE_UNKNOWN
 from homeassistant.setup import setup_component
 from homeassistant.util import dt as dt_util
 
+from tests.async_mock import Mock, patch
 from tests.common import assert_setup_component, get_test_home_assistant
 
 NAME = "foo"
@@ -106,7 +106,7 @@ class TestGoogleWifiSensor(unittest.TestCase):
             conditions = google_wifi.MONITORED_CONDITIONS.keys()
             self.api = google_wifi.GoogleWifiAPI("localhost", conditions)
         self.name = NAME
-        self.sensor_dict = dict()
+        self.sensor_dict = {}
         for condition, cond_list in google_wifi.MONITORED_CONDITIONS.items():
             sensor = google_wifi.GoogleWifiSensor(self.api, self.name, condition)
             name = f"{self.name}_{condition}"

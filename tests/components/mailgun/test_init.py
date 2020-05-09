@@ -1,7 +1,6 @@
 """Test the init file of Mailgun."""
 import hashlib
 import hmac
-from unittest.mock import Mock
 
 import pytest
 
@@ -10,6 +9,8 @@ from homeassistant.components import mailgun, webhook
 from homeassistant.const import CONF_API_KEY, CONF_DOMAIN
 from homeassistant.core import callback
 from homeassistant.setup import async_setup_component
+
+from tests.async_mock import Mock
 
 API_KEY = "abc123"
 
@@ -81,14 +82,14 @@ async def test_mailgun_webhook_with_missing_signature(
     event_count = len(mailgun_events)
 
     await http_client.post(
-        "/api/webhook/{}".format(webhook_id_with_api_key),
+        f"/api/webhook/{webhook_id_with_api_key}",
         json={"hello": "mailgun", "signature": {}},
     )
 
     assert len(mailgun_events) == event_count
 
     await http_client.post(
-        "/api/webhook/{}".format(webhook_id_with_api_key), json={"hello": "mailgun"}
+        f"/api/webhook/{webhook_id_with_api_key}", json={"hello": "mailgun"}
     )
 
     assert len(mailgun_events) == event_count
@@ -104,13 +105,13 @@ async def test_mailgun_webhook_with_different_api_key(
     event_count = len(mailgun_events)
 
     await http_client.post(
-        "/api/webhook/{}".format(webhook_id_with_api_key),
+        f"/api/webhook/{webhook_id_with_api_key}",
         json={
             "hello": "mailgun",
             "signature": {
                 "signature": hmac.new(
                     key=b"random_api_key",
-                    msg=bytes("{}{}".format(timestamp, token), "utf-8"),
+                    msg=bytes(f"{timestamp}{token}", "utf-8"),
                     digestmod=hashlib.sha256,
                 ).hexdigest(),
                 "timestamp": timestamp,
@@ -132,13 +133,13 @@ async def test_mailgun_webhook_event_with_correct_api_key(
     event_count = len(mailgun_events)
 
     await http_client.post(
-        "/api/webhook/{}".format(webhook_id_with_api_key),
+        f"/api/webhook/{webhook_id_with_api_key}",
         json={
             "hello": "mailgun",
             "signature": {
                 "signature": hmac.new(
                     key=bytes(API_KEY, "utf-8"),
-                    msg=bytes("{}{}".format(timestamp, token), "utf-8"),
+                    msg=bytes(f"{timestamp}{token}", "utf-8"),
                     digestmod=hashlib.sha256,
                 ).hexdigest(),
                 "timestamp": timestamp,
@@ -159,7 +160,7 @@ async def test_mailgun_webhook_with_missing_signature_without_api_key(
     event_count = len(mailgun_events)
 
     await http_client.post(
-        "/api/webhook/{}".format(webhook_id_without_api_key),
+        f"/api/webhook/{webhook_id_without_api_key}",
         json={"hello": "mailgun", "signature": {}},
     )
 
@@ -168,7 +169,7 @@ async def test_mailgun_webhook_with_missing_signature_without_api_key(
     assert mailgun_events[-1].data["hello"] == "mailgun"
 
     await http_client.post(
-        "/api/webhook/{}".format(webhook_id_without_api_key), json={"hello": "mailgun"}
+        f"/api/webhook/{webhook_id_without_api_key}", json={"hello": "mailgun"}
     )
 
     assert len(mailgun_events) == event_count + 1
@@ -186,13 +187,13 @@ async def test_mailgun_webhook_event_without_an_api_key(
     event_count = len(mailgun_events)
 
     await http_client.post(
-        "/api/webhook/{}".format(webhook_id_without_api_key),
+        f"/api/webhook/{webhook_id_without_api_key}",
         json={
             "hello": "mailgun",
             "signature": {
                 "signature": hmac.new(
                     key=bytes(API_KEY, "utf-8"),
-                    msg=bytes("{}{}".format(timestamp, token), "utf-8"),
+                    msg=bytes(f"{timestamp}{token}", "utf-8"),
                     digestmod=hashlib.sha256,
                 ).hexdigest(),
                 "timestamp": timestamp,

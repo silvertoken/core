@@ -7,8 +7,9 @@ from typing import Any, Callable, Dict, List, Optional
 
 from aiohttp import ClientError
 from spotipy import Spotify, SpotifyException
+from yarl import URL
 
-from homeassistant.components.media_player import MediaPlayerDevice
+from homeassistant.components.media_player import MediaPlayerEntity
 from homeassistant.components.media_player.const import (
     MEDIA_TYPE_MUSIC,
     MEDIA_TYPE_PLAYLIST,
@@ -31,6 +32,7 @@ from homeassistant.const import (
     STATE_PLAYING,
 )
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers.config_entry_oauth2_flow import OAuth2Session
 from homeassistant.helpers.entity import Entity
 from homeassistant.util.dt import utc_from_timestamp
 
@@ -89,10 +91,17 @@ def spotify_exception_handler(func):
     return wrapper
 
 
-class SpotifyMediaPlayer(MediaPlayerDevice):
+class SpotifyMediaPlayer(MediaPlayerEntity):
     """Representation of a Spotify controller."""
 
-    def __init__(self, session, spotify: Spotify, me: dict, user_id: str, name: str):
+    def __init__(
+        self,
+        session: OAuth2Session,
+        spotify: Spotify,
+        me: dict,
+        user_id: str,
+        name: str,
+    ):
         """Initialize."""
         self._id = user_id
         self._me = me
@@ -294,6 +303,10 @@ class SpotifyMediaPlayer(MediaPlayerDevice):
     def play_media(self, media_type: str, media_id: str, **kwargs) -> None:
         """Play media."""
         kwargs = {}
+
+        # Spotify can't handle URI's with query strings or anchors
+        # Yet, they do generate those types of URI in their official clients.
+        media_id = str(URL(media_id).with_query(None).with_fragment(None))
 
         if media_type == MEDIA_TYPE_MUSIC:
             kwargs["uris"] = [media_id]

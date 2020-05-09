@@ -6,7 +6,6 @@ from datetime import timedelta
 import logging
 from unittest import mock
 
-import asynctest
 import pytest
 import voluptuous as vol
 
@@ -19,6 +18,7 @@ from homeassistant.helpers import config_validation as cv, script
 from homeassistant.helpers.event import async_call_later
 import homeassistant.util.dt as dt_util
 
+from tests.async_mock import patch
 from tests.common import (
     async_capture_events,
     async_fire_time_changed,
@@ -776,7 +776,7 @@ async def test_condition_basic(hass, script_mode):
 
 
 @pytest.mark.parametrize("script_mode", _BASIC_SCRIPT_MODES)
-@asynctest.patch("homeassistant.helpers.script.condition.async_from_config")
+@patch("homeassistant.helpers.script.condition.async_from_config")
 async def test_condition_created_once(async_from_config, hass, script_mode):
     """Test that the conditions do not get created multiple times."""
     sequence = cv.SCRIPT_SCHEMA(
@@ -1138,3 +1138,15 @@ async def test_script_mode_queue(hass):
         assert not script_obj.is_running
         assert len(events) == 4
         assert events[3].data["value"] == 2
+
+
+async def test_script_logging(caplog):
+    """Test script logging."""
+    script_obj = script.Script(None, [], "Script with % Name")
+    script_obj._log("Test message with name %s", 1)
+
+    assert "Script with % Name: Test message with name 1" in caplog.text
+
+    script_obj = script.Script(None, [])
+    script_obj._log("Test message without name %s", 2)
+    assert "Test message without name 2" in caplog.text

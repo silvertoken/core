@@ -8,7 +8,7 @@ from homeassistant.components.lock import (
     DOMAIN,
     STATE_LOCKED,
     STATE_UNLOCKED,
-    LockDevice,
+    LockEntity,
 )
 from homeassistant.core import callback
 from homeassistant.helpers.dispatcher import async_dispatcher_connect
@@ -36,7 +36,7 @@ VALUE_TO_STATE = dict(enumerate(STATE_LIST))
 
 async def async_setup_entry(hass, config_entry, async_add_entities):
     """Set up the Zigbee Home Automation Door Lock from config entry."""
-    entities_to_create = hass.data[DATA_ZHA][DOMAIN] = []
+    entities_to_create = hass.data[DATA_ZHA][DOMAIN]
 
     unsub = async_dispatcher_connect(
         hass,
@@ -49,7 +49,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
 
 
 @STRICT_MATCH(channel_names=CHANNEL_DOORLOCK)
-class ZhaDoorLock(ZhaEntity, LockDevice):
+class ZhaDoorLock(ZhaEntity, LockEntity):
     """Representation of a ZHA lock."""
 
     def __init__(self, unique_id, zha_device, channels, **kwargs):

@@ -1,5 +1,4 @@
 """Common tests for HomematicIP devices."""
-from asynctest import patch
 from homematicip.base.enums import EventType
 
 from homeassistant.components.homematicip_cloud import DOMAIN as HMIPC_DOMAIN
@@ -14,6 +13,8 @@ from .helper import (
     get_and_check_entity_basics,
 )
 
+from tests.async_mock import patch
+
 
 async def test_hmip_load_all_supported_devices(hass, default_mock_hap_factory):
     """Ensure that all supported devices could be loaded."""
@@ -26,11 +27,11 @@ async def test_hmip_load_all_supported_devices(hass, default_mock_hap_factory):
 
 async def test_hmip_remove_device(hass, default_mock_hap_factory):
     """Test Remove of hmip device."""
-    entity_id = "light.treppe"
-    entity_name = "Treppe"
+    entity_id = "light.treppe_ch"
+    entity_name = "Treppe CH"
     device_model = "HmIP-BSL"
     mock_hap = await default_mock_hap_factory.async_get_mock_hap(
-        test_devices=[entity_name]
+        test_devices=["Treppe"]
     )
 
     ha_state, hmip_device = get_and_check_entity_basics(
@@ -58,11 +59,11 @@ async def test_hmip_remove_device(hass, default_mock_hap_factory):
 
 async def test_hmip_add_device(hass, default_mock_hap_factory, hmip_config_entry):
     """Test Remove of hmip device."""
-    entity_id = "light.treppe"
-    entity_name = "Treppe"
+    entity_id = "light.treppe_ch"
+    entity_name = "Treppe CH"
     device_model = "HmIP-BSL"
     mock_hap = await default_mock_hap_factory.async_get_mock_hap(
-        test_devices=[entity_name]
+        test_devices=["Treppe"]
     )
 
     ha_state, hmip_device = get_and_check_entity_basics(
@@ -137,11 +138,11 @@ async def test_all_devices_unavailable_when_hap_not_connected(
     hass, default_mock_hap_factory
 ):
     """Test make all devices unavaulable when hap is not connected."""
-    entity_id = "light.treppe"
-    entity_name = "Treppe"
+    entity_id = "light.treppe_ch"
+    entity_name = "Treppe CH"
     device_model = "HmIP-BSL"
     mock_hap = await default_mock_hap_factory.async_get_mock_hap(
-        test_devices=[entity_name]
+        test_devices=["Treppe"]
     )
 
     ha_state, hmip_device = get_and_check_entity_basics(
@@ -161,11 +162,11 @@ async def test_all_devices_unavailable_when_hap_not_connected(
 
 async def test_hap_reconnected(hass, default_mock_hap_factory):
     """Test reconnect hap."""
-    entity_id = "light.treppe"
-    entity_name = "Treppe"
+    entity_id = "light.treppe_ch"
+    entity_name = "Treppe CH"
     device_model = "HmIP-BSL"
     mock_hap = await default_mock_hap_factory.async_get_mock_hap(
-        test_devices=[entity_name]
+        test_devices=["Treppe"]
     )
 
     ha_state, hmip_device = get_and_check_entity_basics(
@@ -192,8 +193,8 @@ async def test_hap_reconnected(hass, default_mock_hap_factory):
 async def test_hap_with_name(hass, mock_connection, hmip_config_entry):
     """Test hap with name."""
     home_name = "TestName"
-    entity_id = f"light.{home_name.lower()}_treppe"
-    entity_name = f"{home_name} Treppe"
+    entity_id = f"light.{home_name.lower()}_treppe_ch"
+    entity_name = f"{home_name} Treppe CH"
     device_model = "HmIP-BSL"
 
     hmip_config_entry.data = {**hmip_config_entry.data, "name": home_name}

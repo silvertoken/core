@@ -2,7 +2,6 @@
 from datetime import datetime, timedelta
 import statistics
 import unittest
-from unittest.mock import patch
 
 import pytest
 
@@ -12,6 +11,7 @@ from homeassistant.const import ATTR_UNIT_OF_MEASUREMENT, STATE_UNKNOWN, TEMP_CE
 from homeassistant.setup import setup_component
 from homeassistant.util import dt as dt_util
 
+from tests.async_mock import patch
 from tests.common import (
     fire_time_changed,
     get_test_home_assistant,
@@ -102,7 +102,7 @@ class TestStatisticsSensor(unittest.TestCase):
         assert self.mean == state.attributes.get("mean")
         assert self.count == state.attributes.get("count")
         assert self.total == state.attributes.get("total")
-        assert "°C" == state.attributes.get("unit_of_measurement")
+        assert TEMP_CELSIUS == state.attributes.get("unit_of_measurement")
         assert self.change == state.attributes.get("change")
         assert self.average_change == state.attributes.get("average_change")
 

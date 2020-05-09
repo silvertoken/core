@@ -30,8 +30,8 @@ _LOGGER = logging.getLogger(__name__)
 ENTITY_COVER = "cover.test_template_cover"
 
 
-@pytest.fixture
-def calls(hass):
+@pytest.fixture(name="calls")
+def calls_fixture(hass):
     """Track calls to a mock service."""
     return async_mock_service(hass, "test", "automation")
 
@@ -144,7 +144,7 @@ async def test_template_position(hass, calls):
     await hass.async_block_till_done()
 
     entity = hass.states.get("cover.test")
-    attrs = dict()
+    attrs = {}
     attrs["position"] = 42
     hass.states.async_set(entity.entity_id, entity.state, attributes=attrs)
     await hass.async_block_till_done()

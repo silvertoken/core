@@ -1,8 +1,8 @@
 """Common test objects."""
 import time
-from unittest.mock import Mock
 
-from asynctest import CoroutineMock
+from zigpy.device import Device as zigpy_dev
+from zigpy.endpoint import Endpoint as zigpy_ep
 import zigpy.profiles.zha
 import zigpy.types
 import zigpy.zcl
@@ -12,6 +12,8 @@ import zigpy.zdo.types
 
 import homeassistant.components.zha.core.const as zha_const
 from homeassistant.util import slugify
+
+from tests.async_mock import AsyncMock, Mock
 
 
 class FakeEndpoint:
@@ -24,12 +26,13 @@ class FakeEndpoint:
         self.in_clusters = {}
         self.out_clusters = {}
         self._cluster_attr = {}
+        self.member_of = {}
         self.status = 1
         self.manufacturer = manufacturer
         self.model = model
         self.profile_id = zigpy.profiles.zha.PROFILE_ID
         self.device_type = None
-        self.request = CoroutineMock()
+        self.request = AsyncMock(return_value=[0])
 
     def add_input_cluster(self, cluster_id):
         """Add an input cluster."""
@@ -45,28 +48,44 @@ class FakeEndpoint:
         patch_cluster(cluster)
         self.out_clusters[cluster_id] = cluster
 
+    @property
+    def __class__(self):
+        """Fake being Zigpy endpoint."""
+        return zigpy_ep
+
+    @property
+    def unique_id(self):
+        """Return the unique id for the endpoint."""
+        return self.device.ieee, self.endpoint_id
+
+
+FakeEndpoint.add_to_group = zigpy_ep.add_to_group
+FakeEndpoint.remove_from_group = zigpy_ep.remove_from_group
+
 
 def patch_cluster(cluster):
     """Patch a cluster for testing."""
-    cluster.bind = CoroutineMock(return_value=[0])
-    cluster.configure_reporting = CoroutineMock(return_value=[0])
+    cluster.bind = AsyncMock(return_value=[0])
+    cluster.configure_reporting = AsyncMock(return_value=[0])
     cluster.deserialize = Mock()
     cluster.handle_cluster_request = Mock()
-    cluster.read_attributes = CoroutineMock(return_value=[{}, {}])
+    cluster.read_attributes = AsyncMock(return_value=[{}, {}])
     cluster.read_attributes_raw = Mock()
-    cluster.unbind = CoroutineMock(return_value=[0])
-    cluster.write_attributes = CoroutineMock(return_value=[0])
+    cluster.unbind = AsyncMock(return_value=[0])
+    cluster.write_attributes = AsyncMock(return_value=[0])
+    if cluster.cluster_id == 4:
+        cluster.add = AsyncMock(return_value=[0])
 
 
 class FakeDevice:
     """Fake device for mocking zigpy."""
 
-    def __init__(self, app, ieee, manufacturer, model, node_desc=None):
+    def __init__(self, app, ieee, manufacturer, model, node_desc=None, nwk=0xB79C):
         """Init fake device."""
         self._application = app
         self.application = app
         self.ieee = zigpy.types.EUI64.convert(ieee)
-        self.nwk = 0xB79C
+        self.nwk = nwk
         self.zdo = Mock()
         self.endpoints = {0: self.zdo}
         self.lqi = 255
@@ -78,11 +97,13 @@ class FakeDevice:
         self.manufacturer = manufacturer
         self.model = model
         self.node_desc = zigpy.zdo.types.NodeDescriptor()
-        self.add_to_group = CoroutineMock()
-        self.remove_from_group = CoroutineMock()
+        self.remove_from_group = AsyncMock()
         if node_desc is None:
             node_desc = b"\x02@\x807\x10\x7fd\x00\x00*d\x00\x00"
         self.node_desc = zigpy.zdo.types.NodeDescriptor.deserialize(node_desc)[0]
+
+
+FakeDevice.add_to_group = zigpy_dev.add_to_group
 
 
 def get_zha_gateway(hass):
@@ -126,7 +147,7 @@ async def find_entity_id(domain, zha_device, hass):
     machine so that we can test state changes.
     """
     ieeetail = "".join([f"{o:02x}" for o in zha_device.ieee[:4]])
-    head = f"{domain}." + slugify(f"{zha_device.name} {ieeetail}")
+    head = f"{domain}.{slugify(f'{zha_device.name} {ieeetail}')}"
 
     enitiy_ids = hass.states.async_entity_ids(domain)
     await hass.async_block_till_done()
@@ -134,6 +155,17 @@ async def find_entity_id(domain, zha_device, hass):
     for entity_id in enitiy_ids:
         if entity_id.startswith(head):
             return entity_id
+    return None
+
+
+def async_find_group_entity_id(hass, domain, group):
+    """Find the group entity id under test."""
+    entity_id = f"{domain}.{group.name.lower().replace(' ','_')}_zha_group_0x{group.group_id:04x}"
+
+    entity_ids = hass.states.async_entity_ids(domain)
+
+    if entity_id in entity_ids:
+        return entity_id
     return None
 
 

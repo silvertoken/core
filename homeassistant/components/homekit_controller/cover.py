@@ -13,7 +13,7 @@ from homeassistant.components.cover import (
     SUPPORT_SET_POSITION,
     SUPPORT_SET_TILT_POSITION,
     SUPPORT_STOP,
-    CoverDevice,
+    CoverEntity,
 )
 from homeassistant.const import STATE_CLOSED, STATE_CLOSING, STATE_OPEN, STATE_OPENING
 from homeassistant.core import callback
@@ -58,7 +58,7 @@ async def async_setup_entry(hass, config_entry, async_add_entities):
     conn.add_listener(async_add_service)
 
 
-class HomeKitGarageDoorCover(HomeKitEntity, CoverDevice):
+class HomeKitGarageDoorCover(HomeKitEntity, CoverEntity):
     """Representation of a HomeKit Garage Door."""
 
     @property
@@ -128,14 +128,8 @@ class HomeKitGarageDoorCover(HomeKitEntity, CoverDevice):
         return attributes
 
 
-class HomeKitWindowCover(HomeKitEntity, CoverDevice):
+class HomeKitWindowCover(HomeKitEntity, CoverEntity):
     """Representation of a HomeKit Window or Window Covering."""
-
-    def __init__(self, accessory, discovery_info):
-        """Initialise the Cover."""
-        super().__init__(accessory, discovery_info)
-
-        self._features = SUPPORT_OPEN | SUPPORT_CLOSE | SUPPORT_SET_POSITION
 
     def get_characteristic_types(self):
         """Define the homekit characteristics the entity cares about."""
@@ -151,23 +145,27 @@ class HomeKitWindowCover(HomeKitEntity, CoverDevice):
             CharacteristicsTypes.OBSTRUCTION_DETECTED,
         ]
 
-    def _setup_position_hold(self, char):
-        self._features |= SUPPORT_STOP
-
-    def _setup_vertical_tilt_current(self, char):
-        self._features |= (
-            SUPPORT_OPEN_TILT | SUPPORT_CLOSE_TILT | SUPPORT_SET_TILT_POSITION
-        )
-
-    def _setup_horizontal_tilt_current(self, char):
-        self._features |= (
-            SUPPORT_OPEN_TILT | SUPPORT_CLOSE_TILT | SUPPORT_SET_TILT_POSITION
-        )
-
     @property
     def supported_features(self):
         """Flag supported features."""
-        return self._features
+        features = SUPPORT_OPEN | SUPPORT_CLOSE | SUPPORT_SET_POSITION
+
+        if self.service.has(CharacteristicsTypes.POSITION_HOLD):
+            features |= SUPPORT_STOP
+
+        supports_tilt = any(
+            (
+                self.service.has(CharacteristicsTypes.VERTICAL_TILT_CURRENT),
+                self.service.has(CharacteristicsTypes.HORIZONTAL_TILT_CURRENT),
+            )
+        )
+
+        if supports_tilt:
+            features |= (
+                SUPPORT_OPEN_TILT | SUPPORT_CLOSE_TILT | SUPPORT_SET_TILT_POSITION
+            )
+
+        return features
 
     @property
     def current_cover_position(self):

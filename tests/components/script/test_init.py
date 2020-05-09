@@ -1,7 +1,6 @@
 """The tests for the Script component."""
 # pylint: disable=protected-access
 import unittest
-from unittest.mock import Mock, patch
 
 import pytest
 
@@ -22,6 +21,7 @@ from homeassistant.helpers.service import async_get_all_descriptions
 from homeassistant.loader import bind_hass
 from homeassistant.setup import async_setup_component, setup_component
 
+from tests.async_mock import Mock, patch
 from tests.common import get_test_home_assistant
 
 ENTITY_ID = "script.test"
@@ -94,7 +94,7 @@ class TestScriptComponent(unittest.TestCase):
         ):
             assert not setup_component(
                 self.hass, "script", {"script": value}
-            ), "Script loaded with wrong config {}".format(value)
+            ), f"Script loaded with wrong config {value}"
 
             assert 0 == len(self.hass.states.entity_ids("script"))
 

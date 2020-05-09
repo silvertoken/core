@@ -1,6 +1,5 @@
 """Tests for the Google Assistant traits."""
 import logging
-from unittest.mock import Mock, patch
 
 import pytest
 
@@ -23,6 +22,7 @@ from homeassistant.components import (
 )
 from homeassistant.components.climate import const as climate
 from homeassistant.components.google_assistant import const, error, helpers, trait
+from homeassistant.config import async_process_ha_core_config
 from homeassistant.const import (
     ATTR_ASSUMED_STATE,
     ATTR_DEVICE_CLASS,
@@ -45,7 +45,8 @@ from homeassistant.util import color
 
 from . import BASIC_CONFIG, MockConfig
 
-from tests.common import async_mock_service, mock_coro
+from tests.async_mock import patch
+from tests.common import async_mock_service
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -99,7 +100,9 @@ async def test_brightness_light(hass):
 
 async def test_camera_stream(hass):
     """Test camera stream trait support for camera domain."""
-    hass.config.api = Mock(base_url="http://1.1.1.1:8123")
+    await async_process_ha_core_config(
+        hass, {"external_url": "https://example.com"},
+    )
     assert helpers.get_google_type(camera.DOMAIN, None) is not None
     assert trait.CameraStreamTrait.supported(camera.DOMAIN, camera.SUPPORT_STREAM, None)
 
@@ -117,12 +120,12 @@ async def test_camera_stream(hass):
 
     with patch(
         "homeassistant.components.camera.async_request_stream",
-        return_value=mock_coro("/api/streams/bla"),
+        return_value="/api/streams/bla",
     ):
         await trt.execute(trait.COMMAND_GET_CAMERA_STREAM, BASIC_DATA, {}, {})
 
     assert trt.query_attributes() == {
-        "cameraStreamAccessUrl": "http://1.1.1.1:8123/api/streams/bla"
+        "cameraStreamAccessUrl": "https://example.com/api/streams/bla"
     }
 
 
@@ -557,6 +560,32 @@ async def test_temperature_setting_climate_onoff(hass):
     assert len(calls) == 1
 
 
+async def test_temperature_setting_climate_no_modes(hass):
+    """Test TemperatureSetting trait support for climate domain not supporting any modes."""
+    assert helpers.get_google_type(climate.DOMAIN, None) is not None
+    assert trait.TemperatureSettingTrait.supported(climate.DOMAIN, 0, None)
+
+    hass.config.units.temperature_unit = TEMP_CELSIUS
+
+    trt = trait.TemperatureSettingTrait(
+        hass,
+        State(
+            "climate.bla",
+            climate.HVAC_MODE_AUTO,
+            {
+                climate.ATTR_HVAC_MODES: [],
+                climate.ATTR_MIN_TEMP: None,
+                climate.ATTR_MAX_TEMP: None,
+            },
+        ),
+        BASIC_CONFIG,
+    )
+    assert trt.sync_attributes() == {
+        "availableThermostatModes": "heat",
+        "thermostatTemperatureUnit": "C",
+    }
+
+
 async def test_temperature_setting_climate_range(hass):
     """Test TemperatureSetting trait support for climate domain - range."""
     assert helpers.get_google_type(climate.DOMAIN, None) is not None
@@ -819,10 +848,8 @@ async def test_lock_unlock_unlock(hass):
     assert err.value.code == const.ERR_CHALLENGE_NOT_SETUP
 
     # Test with 2FA override
-    with patch(
-        "homeassistant.components.google_assistant.helpers"
-        ".AbstractConfig.should_2fa",
-        return_value=False,
+    with patch.object(
+        BASIC_CONFIG, "should_2fa", return_value=False,
     ):
         await trt.execute(trait.COMMAND_LOCKUNLOCK, BASIC_DATA, {"lock": False}, {})
     assert len(calls) == 2
@@ -1506,7 +1533,8 @@ async def test_openclose_cover_no_position(hass):
 
 
 @pytest.mark.parametrize(
-    "device_class", (cover.DEVICE_CLASS_DOOR, cover.DEVICE_CLASS_GARAGE)
+    "device_class",
+    (cover.DEVICE_CLASS_DOOR, cover.DEVICE_CLASS_GARAGE, cover.DEVICE_CLASS_GATE),
 )
 async def test_openclose_cover_secure(hass, device_class):
     """Test OpenClose trait support for cover domain."""

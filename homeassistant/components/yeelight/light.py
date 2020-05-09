@@ -29,7 +29,7 @@ from homeassistant.components.light import (
     SUPPORT_EFFECT,
     SUPPORT_FLASH,
     SUPPORT_TRANSITION,
-    Light,
+    LightEntity,
 )
 from homeassistant.const import ATTR_ENTITY_ID, ATTR_MODE, CONF_HOST, CONF_NAME
 from homeassistant.core import callback
@@ -141,6 +141,8 @@ MODEL_TO_DEVICE_TYPE = {
     "ceiling2": BulbType.WhiteTemp,
     "ceiling3": BulbType.WhiteTemp,
     "ceiling4": BulbType.WhiteTempMood,
+    "ceiling10": BulbType.WhiteTempMood,
+    "ceiling13": BulbType.WhiteTemp,
 }
 
 EFFECTS_MAP = {
@@ -425,7 +427,7 @@ def setup_services(hass):
     )
 
 
-class YeelightGenericLight(Light):
+class YeelightGenericLight(LightEntity):
     """Representation of a Yeelight generic light."""
 
     def __init__(self, device, custom_effects=None):
@@ -455,10 +457,12 @@ class YeelightGenericLight(Light):
 
     async def async_added_to_hass(self):
         """Handle entity which will be added."""
-        async_dispatcher_connect(
-            self.hass,
-            DATA_UPDATED.format(self._device.ipaddr),
-            self._schedule_immediate_update,
+        self.async_on_remove(
+            async_dispatcher_connect(
+                self.hass,
+                DATA_UPDATED.format(self._device.ipaddr),
+                self._schedule_immediate_update,
+            )
         )
 
     @property
@@ -676,7 +680,7 @@ class YeelightGenericLight(Light):
 
             red, green, blue = color_util.color_hs_to_RGB(*self._hs)
 
-            transitions = list()
+            transitions = []
             transitions.append(
                 RGBTransition(255, 0, 0, brightness=10, duration=duration)
             )
